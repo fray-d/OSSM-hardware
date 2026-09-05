@@ -337,16 +337,22 @@ class HalfnHalf : public Pattern {
         _speed = speed;
         _updateStrokeTiming();
     }
+    void setStroke(int stroke) {
+        _stroke = stroke;
+        _updateStrokeTiming();
+    }
     motionParameter nextTarget(unsigned int index) {
-        // check if this is the very first
-        if (index == 0) {
-            // pattern started for the very fist time, so we start gentle with a
-            // half move
-            _half = true;
-        }
+        // Derive the half/full alternation straight from the stroke index
+        // instead of toggling a flag. StrokeEngine re-queries the *same* index
+        // whenever an "apply now" update arrives mid stroke, so a flag flipped
+        // in here would be toggled an arbitrary number of times and the pattern
+        // would pick full or half at random. Index 0, 4, 8 ... move in half and
+        // index 2, 6, 10 ... move in full, which reproduces the original
+        // sequence and still starts gently with a half move.
+        const bool half = ((index / 2) % 2) == 0;
         // set-up the stroke length
         int stroke = _stroke;
-        if (_half == true) {
+        if (half == true) {
             // half the stroke length
             stroke = _stroke / 2;
         }
@@ -357,8 +363,6 @@ class HalfnHalf : public Pattern {
             // acceleration to meet the profile
             _nextMove.acceleration = int(3.0 * float(_nextMove.speed) / _timeOfOutStroke);
             _nextMove.stroke = _depth - _stroke;
-            // every second move is half
-            _half = !_half;
             // even stroke is moving in
         } else {
             // maximum speed of the trapezoidal motion
@@ -375,7 +379,6 @@ class HalfnHalf : public Pattern {
     float _timeOfFastStroke = 1.0;
     float _timeOfInStroke = 1.0;
     float _timeOfOutStroke = 1.0;
-    bool _half = true;
     void _updateStrokeTiming() {
         if (_stroke == 0 || _speed == 0) return;
         // time of a trapezoidal motion maximizing at speed
