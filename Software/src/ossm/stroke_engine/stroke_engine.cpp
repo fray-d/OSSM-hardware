@@ -15,6 +15,14 @@ using namespace sml;
 class StrokeEngine Stroker;
 
 namespace stroke_engine {
+    // StrokeEngine::begin() retains this struct by pointer for as long as the
+    // global `Stroker` object lives, which outlives the task that configures it.
+    // It therefore must not live on a task stack, or `Stroker` is left holding a
+    // dangling pointer as soon as that task exits and its stack is freed. It is
+    // reassigned on every task start, so homing and UserConfig changes are still
+    // picked up.
+    static machineProperties properties{};
+
     static bool isChangeSignificant(float oldPct, float newPct) {
         return oldPct != newPct && (abs(newPct - oldPct) > 0.5 || newPct == 0.0 || newPct == 100.0);
     }
@@ -25,7 +33,7 @@ namespace stroke_engine {
 
     static void startStrokeEngineTask(void *pvParameters) {
         SettingPercents lastSetting = settings;
-        machineProperties properties{
+        properties = machineProperties{
             .maxSpeed = UserConfig::getMaxSpeedMMS(),
             .maxAcceleration = UserConfig::getMaxAcceleration(),
             .physicalTravel = calibration.measuredStrokeSteps / UserConfig::getStepsPerMM(),

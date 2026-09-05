@@ -126,12 +126,32 @@ void StrokeEngine::setSensation(float sensation, bool applyNow = false) {
 }
 
 bool StrokeEngine::setPattern(StrokePatterns NextPattern, bool applyNow = false) {
-    // Free up memory from previous pattern
-    delete pattern;
-    pattern = Pattern::Create(NextPattern);
+    // Reject invalid pattern indices and retain the previous pattern.
+    if ((NextPattern < StrokePatterns::SimpleStroke) ||
+        (NextPattern >= StrokePatterns::Count)) {
+        ESP_LOGE(SE, "Invalid pattern index: %d", (int)NextPattern);
+        return false;
+    }
 
-    // Inject current motion parameters into new pattern
+    // Build the replacement before letting go of the current one, so the engine
+    // is never left without a valid pattern.
+    Pattern *nextPattern = Pattern::Create(NextPattern);
+    if (nextPattern == NULL) {
+        ESP_LOGE(SE, "Out of memory creating pattern: %d", (int)NextPattern);
+        return false;
+    }
+
+    // The stroking task dereferences `pattern` while holding _patternMutex, so
+    // the pointer may only be swapped under that same mutex. Deleting and
+    // re-creating it unlocked is a use-after-free: the stroking task can read
+    // members of the freed object, or dispatch through a stale vtable pointer
+    // into the freshly allocated replacement.
+    Pattern *previousPattern = NULL;
     if (xSemaphoreTake(_patternMutex, portMAX_DELAY) == pdTRUE) {
+        previousPattern = pattern;
+        pattern = nextPattern;
+
+        // Inject current motion parameters into new pattern
         pattern->setSpeedLimit(_maxStepPerSecond, _maxStepAcceleration, _machine->stepsPerMillimeter);
         pattern->setStroke(_stroke);
         pattern->setDepth(_depth);
@@ -153,7 +173,17 @@ bool StrokeEngine::setPattern(StrokePatterns NextPattern, bool applyNow = false)
 
         // give back mutex
         xSemaphoreGive(_patternMutex);
+    } else {
+        // The replacement was never published, so drop it and keep the current
+        // pattern.
+        delete nextPattern;
+        return false;
     }
+
+    // Free the previous pattern outside the mutex. It is no longer reachable by
+    // any other task once swapped above, so this cannot race with the stroking
+    // task, and it keeps the critical section short.
+    delete previousPattern;
 
     return true;
 }
