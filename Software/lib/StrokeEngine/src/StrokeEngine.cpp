@@ -61,7 +61,7 @@ void StrokeEngine::setDepth(float depth, bool applyNow = false) {
 
         pattern->setDepth(_depth);
 
-        ESP_LOGD(SE, "Depht: %f", _depth);
+        ESP_LOGD(SE, "Depth: %d", _depth);
 
         // When running a pattern and immediate update requested:
         if ((_state == PATTERN) && (applyNow == true)) {
@@ -86,7 +86,7 @@ void StrokeEngine::setStroke(float stroke, bool applyNow = false) {
 
         pattern->setStroke(_stroke);
 
-        ESP_LOGD(SE, "Stroke: %f", _stroke);
+        ESP_LOGD(SE, "Stroke: %d", _stroke);
 
         // When running a pattern and immediate update requested:
         if ((_state == PATTERN) && (applyNow == true)) {
@@ -287,7 +287,7 @@ void StrokeEngine::_stroking() {
 
                 // Increase deceleration if required to avoid crash
                 if (_servo->getAcceleration() > currentMotion.acceleration) {
-                    ESP_LOGD(SE,"Crash avoidance! Set acceleration from %f to %f",currentMotion.acceleration,_servo->getAcceleration());
+                    ESP_LOGD(SE,"Crash avoidance! Set acceleration from %d to %d",currentMotion.acceleration,_servo->getAcceleration());
                     currentMotion.acceleration = _servo->getAcceleration();
                 }
 
